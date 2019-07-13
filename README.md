@@ -4,7 +4,7 @@ This articles demonstrates how at least some uses cases for an object spread ope
 
 See my blog article for more details:
 
-- either [on my website](https://www.google.com)
+- either [on my website](https://michael.hoennig.de/2019/07/13/an-object-spread-operator-for-kotlin/)
 - or [in this repository](article/index.adoc)
 
 ## Build Instructions
