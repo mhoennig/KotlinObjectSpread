@@ -1,0 +1,200 @@
+= An Object Spread Operator for _Kotlin_
+:toc:
+:icons: font
+
+_Kotlin_ supports an array spread operator `*`,
+similar to `...` in modern _Java_Script versions like _ES6_ or the splat operator `*` in _Python_,
+but it does not have an object spread operator like `...` _ES6_ or `**` in _Python 3.5_
+
+This articles demonstrates how at least some uses cases for an object spread operator
+can be implemented with _Kotlin_.
+
+If you are generally familiar with the spread operator,
+you can directly jump to **An Object Spread Operator for _Kotlin_** below.
+
+== The Object Spread Operator in _ES6_
+
+With the _ES6_ object spread operator it's possible to combine the properties of multiple objects
+as well as single properties to a new object as shown in this example:
+
+```javascript
+const fullName = { first: 'Henry', last: 'O\'Conner' }; // JS needs property names
+const streetAddress = { street: 'Dog Basket', city: 'Canine Town', zipCode: 'K9T' };
+const fullAddress = { ...fullName, ...streetAddress, planet: 'Earth' };
+```
+
+The third line takes all properties from `fullName` and then all properties from `streetAddress`
+and finally adds the property for `'planet': 'Earth'` to create a new object `fullAddress`.
+If `streetAddress` contained a property name which is also in `fullName`,
+the property from `streetAddress` would win as it comes further right in the parameter list.
+
+There is also a similar syntax to combine arrays in _ES6_.
+
+== The Array Spread Operator in _Kotlin_
+
+The _Kotlin_ `*` operator is very similar to the _ES6_ array spread operator shortly mentioned above.
+In _Kotlin_ it can be used either for spreading an array onto single `vararg` parameters:
+
+```kotlin
+// given some method taking variable arguments
+fun someMethod(vararg values: Int) {
+    // whatever it needs to do with the values
+}
+
+// and an array
+val arr = arrayOf(1, 2, 3)
+
+// then the array elements can be passed
+foo(*arr)
+```
+
+This is similar to _Java_, where an array can be directly passed as `varargs`.
+
+But the _Kotlin_ syntax is more flexible than in _Java_ and thus more like in _ES6_.
+It's possible to spread multiple arrays and even add single values as shown here:
+
+```_kotlin
+val arr1 = arrayOf("value 1", "value 2")
+val arr2 = arrayOf("value 4", "value 6", "value 7")
+someVarargsFunction("value 0", *arr1, "value 3", *arr2)
+```
+
+== An Object Spread Operator for _Kotlin_
+
+I found two options for implementing an object spread operator with Kotlin:
+
+1. Using a `Map` as the actual property-store of the object and the `by` operator to create getters for each property.
++
+This approach cannot be applied to data classes because it needs a primary constructor with a `Map`.
+
+2. Using extension functions to convert objects from and to `Map` instances.
++
+This approach combines very well with data classes, but does not require those.
+
+In both cases, combining properties from multiple objects is done by combining the maps.
+
+=== 1st approach: Using a Map as the Actual Property-Store
+
+The first approach to implement an object spread operator with _Kotlin_
+is based on classes which store their properties in a `Map`.
+Therefore, it needs access to the source code of the classes to which we want to apply it.
+
+```kotlin
+class FullNameMC(val map: Map<String, Any?>) {
+    var first: String by map
+    var last: String by map
+
+    // optional if you want simple direct construction from values
+    // but it makes the map-based-class more verbose
+    constructor(first: String, last: String) :
+            this(mutableMapOf("first" to first, "last" to last)) {
+    }
+}
+```
+
+Unfortunately this approach cannot be combined with data classes.
+
+But because the `map` is the actual property store, it can be directly used:
+
+```kotlin
+// create one example object from a map
+val map = mutableMapOf<String, Any?>("first" to "Henry", "last" to "O'Conner")
+val fullName = FullNameMC(map)
+
+// create another sample object by constructor
+val streetAddress = StreetAddressMC("Dog Basket", "Canine Town", "K9T")
+
+// combine the two with an additional property to a new object
+val fullAddress = FullAddressMC(fullName() + streetAddress() + ("planet" to "Earth"))
+```
+
+==== Explaining the `()` and `+` Operator Magic
+
+The last line of code might look like magic.
+If you have a closer look, it uses the _Kotlin_ invoke operator `()`,
+which kinda replaces the _ES6_ `...` operator.
+And this `()` operator is overwritten to implement the _magic_:
+
+```kotlin
+operator fun Any.invoke(): Map<String, Any?> {
+    return javaClass.kotlin.memberProperties
+            .filter { it.visibility == KVisibility.PUBLIC }
+            .map { it.name to it.getter.call(this) }
+            .toMap()
+}
+
+```
+
+Finally, the Kotlin `+` operator can be applied to the resulting maps
+as well as the additional property.
+
+=== 2nd approach: Converting Objects from and to Map Instances
+
+But we would like an object spread operator which can be applied to any existing class, right?
+That's possible with this second approach.
+
+```kotlin
+// create one example object from a map
+val map = mutableMapOf("first" to "Henry", "last" to "O'Conner")
+val fullName = FullNameDC::class.by(map)
+
+// create another sample object by constructor
+val streetAddress = StreetAddressDC("Dog Basket", "Canine Town", "K9T")
+
+// combine the two with an additional property to a new object
+val fullAddress = FullAddressDC::class.by(fullName() + streetAddress() + ("planet" to "Earth"))
+```
+
+=== Explaining the Magic of the `by` Function
+
+NOTE: See also *Explaining the `()` an `+` Operator Magic* in the previous section.
+
+We already know that the actual argument of the `by` function in the above example is a `Map`.
+As there is no `by` function in _Kotlin_ classes, it's of course an extension function.
+
+_Kotlin_ extension functions can be used wherever we import these.
+The following concrete approach needs all properties to be settable in the constructor.
+But many other implementation could be imagined, e.g. calling setters of the target class.
+Thus it should be possible to use this general approach for all existing classes,
+as long as these represent something like properties.
+
+Here one example implementation of such a `by` extension function:
+
+```kotlin
+fun <T : Any> KClass<T>.by(values: Map<String, Any?>): T {
+    val ctor = this.primaryConstructor!!
+    val params = ctor.parameters.associateBy({ it }, { values.get(it.name) })
+    return ctor.callBy(params)
+}
+```
+
+Where a normal function could also do the job, an extension function makes the code read more natural.
+
+The _magic_ relies in the `associateBy` call:
+
+- It iterates over all declared parameters of the constructor of the target class.
+- For each declared parameter it associates it with the value of the respective value from the `values-Map`.
+- The result is a `Map<KParameter, Any?>` which can be used to call the constructor.
+
+WARNING: This implementation does simply ignore map elements which are not also properties of the underlying class.
+ Though, a production-ready implementation of this extension function could implement a check
+ and throw an exception.
+
+
+== Final Thoughts
+
+The approach with the extension function for _Kotlin_ classes using `associateBy` is more flexible
+because it can be applied to almost all existing classes which somehow represent properties.
+It's only drawback is the little lengthy constructor call `TargetClass::class.by(map)`;
+maybe one of my readers finds a way to write it as `TargetClass.by(map)` or similar,
+which does not need access to the target class source code.
+
+TIP: Did you know that in _Kotlin_ you can have default argument values and named arguments?
+ E.g. `FullAddressDC(city = "Canine Town", zipCode = "K9T", planet = "Earth")`
+ These two features make object creation look similar to _JavaScript_
+ and combine very well when dealing with properties in general.
+
+This example also showed that _Kotlin_ can do awesome things
+and _Kotlin_ code can be almost as terse as _JavaScript_ code.
+Try this with _Java_!
+
