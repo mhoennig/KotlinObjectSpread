@@ -198,3 +198,13 @@ This example also showed that _Kotlin_ can do awesome things
 and _Kotlin_ code can be almost as terse as _JavaScript_ code.
 Try this with _Java_!
 
+The source code can be found in my https://github.com/mhoennig/KotlinObjectSpread[github repository]. +
+You can also reply https://twitter.com/javagil/status/1150078120285941760[on Twitter].
+
+'''
+
+References on _kotlinlang.org_:
+
+- https://kotlinlang.org/docs/reference/delegated-properties.html[Delegated Properties]
+- https://kotlinlang.org/docs/reference/extensions.html[Extension Functions]
+- https://kotlinlang.org/api/latest/jvm/stdlib/kotlin.sequences/associate-by.html[associateBy]
